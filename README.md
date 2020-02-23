@@ -22,6 +22,10 @@
 ## Objectives
 
 1. Download CloudTrail Logs
+    ```shell script
+    ./aws s3 sync 's3://flaws2-logs' .
+    ls -lR AWSLogs
+    ```
 
 2. Access Target Account
 
