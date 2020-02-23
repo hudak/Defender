@@ -3,3 +3,10 @@
 [profile security]
 region=us-east-1
 output=json
+
+[profile target_security]
+region=us-east-1
+output=json
+source_profile = security
+role_arn = arn:aws:iam::653711331788:role/security
+

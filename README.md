@@ -16,7 +16,9 @@
 
 2. Verify account access with provided aws wrapper
     ```shell script
-    ./aws sts get-caller-identity
+    cat \
+      <(./aws sts get-caller-identity) \
+      <(AWS_PROFILE=target_security ./aws sts get-caller-identity)
     ```
 
 ## Objectives
@@ -28,6 +30,11 @@
     ```
 
 2. Access Target Account
+    - Added target_security profile to provided aws_config
+    - Use AWS_PROFILE env variable to switch profiles
+    ```shell script
+    AWS_PROFILE=target_security ./aws s3 ls
+    ```
 
 3. Unzip & parse log records 
 
