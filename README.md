@@ -37,6 +37,9 @@
     ```
 
 3. Unzip & parse log records 
+    ```shell script
+    pipenv run describe_events
+    ```
 
 4. Identify credential theft
 

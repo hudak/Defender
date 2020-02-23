@@ -12,3 +12,6 @@ tqdm = "*"
 
 [requires]
 python_version = "3.7"
+
+[scripts]
+describe_events = 'python search_logs.py --describe-events'
