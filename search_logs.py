@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import gzip
 from typing import NamedTuple, Dict, List
+import re
 
 import pandas as pd
 from tqdm import tqdm
@@ -73,14 +74,28 @@ def main():
 
     # Open files, collect all found records
     records = load_files(log_files)
+
+    # Extract assumed role from records
+    records['role'] = pd.Series(None, dtype=str)
+    has_arn = pd.notna(records.arn)
+    records.loc[has_arn, 'role'] = records[has_arn].apply(role_from_record, axis=1)
+
+    # Augment records with role info
+    roles = load_roles(args.roles) if args.roles else None
+    records['role_principal'] = records.role.map(roles.principal) if roles is not None else None
+
     print(f'Found {len(records)} records')
 
     if args.describe_events:
         print(records.groupby(['eventType', 'eventName']).size())
 
-    # Parse role info
-    roles = load_roles(args.roles) if args.roles else None
-    print(roles)
+    print(records.loc[records.role.notna(), ['eventName', 'role', 'role_principal', 'sourceIPAddress']])
+
+
+def role_from_record(record):
+    match = re.search(r':assumed-role/([^/]+)/', record.arn)
+    if match:
+        return match.group(1)
 
 
 def load_roles(json_file):
@@ -95,7 +110,8 @@ def load_roles(json_file):
                 yield name, role_type, principal
 
     role_objects = json.load(json_file)['Roles']
-    return pd.DataFrame.from_records([role for obj in role_objects for role in extract_role(obj)], columns=role_fields)
+    roles = [role for obj in role_objects for role in extract_role(obj)]
+    return pd.DataFrame.from_records(roles, index='name', columns=role_fields)
 
 
 def load_files(log_files: List[Path]) -> pd.DataFrame:
