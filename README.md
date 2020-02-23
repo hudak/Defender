@@ -58,3 +58,9 @@
     ```
 
 6. Query Records
+    - Added simple query syntax to replicate Athena functionality
+    - Supports lookup by field value and limiting output columns  
+    ```shell script
+    pipenv run log_query 'role == "level3"'
+    pipenv run log_query 'eventName == "ListBuckets" | role == "level1"' -f idType eventName eventType role
+    ```

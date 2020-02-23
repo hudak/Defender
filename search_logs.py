@@ -18,6 +18,10 @@ actions = parser.add_mutually_exclusive_group()
 actions.add_argument('--describe-events', action='store_true', help='Count types of observed events.')
 actions.add_argument('--find-intruders', action='store_true', help='Highlight records from non-AWS IPs.')
 
+query = actions.add_mutually_exclusive_group()
+query.add_argument('-q', '--query', help='Query records with simple pandas syntax.')
+parser.add_argument('-f', '--fields', nargs='+', help='Query output fields')
+
 
 class Record(NamedTuple):
     eventVersion: int
@@ -34,6 +38,9 @@ class Record(NamedTuple):
 
     eventID: str
     eventType: str
+
+    role: str = None
+    role_principal: str = None
 
     @classmethod
     def read_obj(cls, obj):
@@ -68,7 +75,6 @@ class Record(NamedTuple):
 
 def main():
     args = parser.parse_args()
-    print(args)
     # Find all log files
     glob_patterns = ['*.json', '*.json.gz']
     log_files = set(f for d in args.log_dir if d.is_dir() for g in glob_patterns for f in d.rglob(g))
@@ -81,13 +87,13 @@ def main():
     records.sort_values('eventTime', inplace=True)
 
     # Extract assumed role from records
-    records['role'] = pd.Series(None, dtype=str)
     has_arn = pd.notna(records.arn)
     records.loc[has_arn, 'role'] = records[has_arn].apply(role_from_record, axis=1)
 
     # Augment records with role info
     roles = load_roles(args.roles) if args.roles else None
-    records['role_principal'] = records.role.map(roles.principal) if roles is not None else None
+    if roles is not None:
+        records['role_principal'] = records.role.map(roles.principal)
 
     print(f'Found {len(records)} records')
 
@@ -118,6 +124,15 @@ def main():
         for addr in intruders:
             print(f'{addr} Activity:')
             print(records.loc[src_ip == addr, ['eventTime', 'eventName', 'role', 'role_principal']])
+
+    elif args.query:
+        df: pd.DataFrame = records.query(args.query)
+
+        if args.fields:
+            df = df.loc[:, args.fields]
+
+        print('Query Result:')
+        print(df)
 
 
 def role_from_record(record):
