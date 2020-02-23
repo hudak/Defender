@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('log_dir', type=Path, nargs='*', default=[Path('AWSLogs')],
                     help='Location of AWS CloudTrail logs')
 parser.add_argument('--describe-events', action='store_true', help='Count types of observed events.')
+parser.add_argument('-r', '--roles', type=argparse.FileType('r'), help='IAM role info as JSON')
 
 
 class Record(NamedTuple):
@@ -76,6 +77,25 @@ def main():
 
     if args.describe_events:
         print(records.groupby(['eventType', 'eventName']).size())
+
+    # Parse role info
+    roles = load_roles(args.roles) if args.roles else None
+    print(roles)
+
+
+def load_roles(json_file):
+    role_fields = ['name', 'type', 'principal']
+
+    def extract_role(role_obj):
+        name = role_obj['RoleName']
+        policy_doc = role_obj['AssumeRolePolicyDocument']
+
+        for statement in policy_doc['Statement']:
+            for role_type, principal in statement['Principal'].items():
+                yield name, role_type, principal
+
+    role_objects = json.load(json_file)['Roles']
+    return pd.DataFrame.from_records([role for obj in role_objects for role in extract_role(obj)], columns=role_fields)
 
 
 def load_files(log_files: List[Path]) -> pd.DataFrame:
