@@ -4,6 +4,7 @@ import json
 import gzip
 from typing import NamedTuple, Dict, List
 import re
+import socket
 
 import pandas as pd
 from tqdm import tqdm
@@ -11,8 +12,11 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser()
 parser.add_argument('log_dir', type=Path, nargs='*', default=[Path('AWSLogs')],
                     help='Location of AWS CloudTrail logs')
-parser.add_argument('--describe-events', action='store_true', help='Count types of observed events.')
 parser.add_argument('-r', '--roles', type=argparse.FileType('r'), help='IAM role info as JSON')
+
+actions = parser.add_mutually_exclusive_group()
+actions.add_argument('--describe-events', action='store_true', help='Count types of observed events.')
+actions.add_argument('--find-intruders', action='store_true', help='Highlight records from non-AWS IPs.')
 
 
 class Record(NamedTuple):
@@ -74,6 +78,7 @@ def main():
 
     # Open files, collect all found records
     records = load_files(log_files)
+    records.sort_values('eventTime', inplace=True)
 
     # Extract assumed role from records
     records['role'] = pd.Series(None, dtype=str)
@@ -89,7 +94,30 @@ def main():
     if args.describe_events:
         print(records.groupby(['eventType', 'eventName']).size())
 
-    print(records.loc[records.role.notna(), ['eventName', 'role', 'role_principal', 'sourceIPAddress']])
+    elif args.find_intruders:
+        # Mark records from aws internal hosts as safe
+        src_ip = records.sourceIPAddress
+        aws_host = src_ip.str.endswith('amazonaws.com')
+        records['awsHost'] = aws_host
+
+        unknown_hosts = src_ip[~aws_host].unique()
+        # Lookup unknown hosts
+        for addr in tqdm(unknown_hosts, desc='Scanning unknown hosts', unit='ipAddr'):
+            try:
+                host = socket.gethostbyaddr(addr)[0]
+                records.loc[src_ip == addr, 'awsHost'] = host.endswith('amazonaws.com')
+            except OSError:
+                pass
+
+        # Report intruders
+        intruders = src_ip[~records.awsHost].unique()
+
+        if intruders:
+            print(f'Found possible attackers:', intruders)
+
+        for addr in intruders:
+            print(f'{addr} Activity:')
+            print(records.loc[src_ip == addr, ['eventTime', 'eventName', 'role', 'role_principal']])
 
 
 def role_from_record(record):

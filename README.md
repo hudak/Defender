@@ -42,6 +42,14 @@
     ```
 
 4. Identify credential theft
+    - Script will search for non-AWS source IP addresses in records
+    ```shell script
+    pipenv run find_intruders
+    ```
+    - Results can be augmented with assumed IAM role info if provided
+    ```shell script
+    pipenv run find_intruders -r <(AWS_PROFILE=target_security ./aws iam list-roles)
+    ```
 
 5. Identify public resource
 
