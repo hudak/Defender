@@ -52,5 +52,9 @@
     ```
 
 5. Identify public resource
+    - Simple script unwraps policyText from get-response-policy response
+    ```shell script
+    AWS_PROFILE=target_security ./aws ecr get-repository-policy --repository-name level2 | pipenv run python parse_policy_text.py
+    ```
 
 6. Query Records
